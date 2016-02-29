@@ -1,0 +1,90 @@
+Xiongfeng Jin
+504502689
+
+for func0, i added #pragma omp parallel for private(i) and unrolled the loop,
+and take out the 1/((double)(n)) from the loop so that we don't have to calculate 
+the result each iteration
+
+for func1 i added #pragma omp parallel for for the first loop and for the second loop
+i added #pragma omp parallel for private(temp1,temp2,ip,i,j,index_X,index_Y) and i take
+out the second inner loop because I think that will be easier to write the parallel program
+and i also take out round(arrayX[i]) and round(arrayY[i]) from the first inner loop because
+we only need to calculate the result of these two once at each outter iteration i also added
+a pointer: ip = &index[i*Ones] so that we don't have to calculate the i*Ones each time and just
+use ip[j] in the inner loop. lastly, I unrolled the inner loop. for the second inner loop, i
+created a temporary variable to accumulate the result inside the loop, and at last i assigned the 
+value back to probability[i] = temp3/((double) Ones).
+
+for func2 i add #pragma omp parallel for, for each loop and for the second loop i added 
+reduction(+:sumWeights) to avoid race condition. and i unrolled first loop.
+
+for func3 i splite the loop into two loops and added #pragma omp parallel for reduction(+:estimate_x)
+and #pragma omp parallel for reduction(+:estimate_y) for each loop
+
+for func4 i added #pragma omp parallel for for the loop
+
+for func5 i added #pragma omp parallel for private(i) for the first loop and i added 
+#pragma omp parallel for for the second loop. I also took out the 1/((double)(n)) and assigned
+it to a variable so we don't have to calculate inside the loop at each iteration.
+
+so if i run seq:
+[xiongfen@lnxsrv09 ~/Desktop/openmplab]$ ./seq
+FUNC TIME : 0.497977
+TOTAL TIME : 2.615456
+
+and if i run make check:
+[xiongfen@lnxsrv09 ~/Desktop/openmplab]$ make check
+gcc -o omp  -O3 -fopenmp filter.c main.c func.c util.c -lm
+cp omp filter
+./filter
+FUNC TIME : 0.059635
+TOTAL TIME : 3.038204
+diff --brief correct.txt output.txt
+it shows that the program speed up about 0.497977/0.059635 = 8.35 times faster
+and the output is correct
+
+
+and if i run make checkmem:
+[xiongfen@lnxsrv09 ~/Desktop/openmplab]$ make checkmem
+mtrace filter mtrace.out || true
+
+Memory not freed:
+-----------------
+		   Address     Size     Caller
+0x0000000001517cb0     0xc0  at 0x7f47c804f7b9
+0x0000000001517d80    0x108  at 0x7f47c804f809
+0x0000000001517e90    0x240  at 0x7f47c8573de5
+0x00000000015180e0    0x240  at 0x7f47c8573de5
+0x0000000001518330    0x240  at 0x7f47c8573de5
+0x0000000001518580    0x240  at 0x7f47c8573de5
+0x00000000015187d0    0x240  at 0x7f47c8573de5
+0x0000000001518a20    0x240  at 0x7f47c8573de5
+0x0000000001518c70    0x240  at 0x7f47c8573de5
+0x0000000001518ec0    0x240  at 0x7f47c8573de5
+0x0000000001519110    0x240  at 0x7f47c8573de5
+0x0000000001519360    0x240  at 0x7f47c8573de5
+0x00000000015195b0    0x240  at 0x7f47c8573de5
+0x0000000001519800    0x240  at 0x7f47c8573de5
+0x0000000001519a50    0x240  at 0x7f47c8573de5
+0x0000000001519ca0    0x240  at 0x7f47c8573de5
+0x0000000001519ef0    0x240  at 0x7f47c8573de5
+0x000000000151a140    0x240  at 0x7f47c8573de5
+0x000000000151a390    0x240  at 0x7f47c8573de5
+0x000000000151a5e0    0x240  at 0x7f47c8573de5
+0x000000000151a830    0x240  at 0x7f47c8573de5
+0x000000000151aa80    0x240  at 0x7f47c8573de5
+0x000000000151acd0    0x240  at 0x7f47c8573de5
+0x000000000151af20    0x240  at 0x7f47c8573de5
+0x000000000151b170    0x240  at 0x7f47c8573de5
+0x000000000151b3c0    0x240  at 0x7f47c8573de5
+0x000000000151b610    0x240  at 0x7f47c8573de5
+0x000000000151b860    0x240  at 0x7f47c8573de5
+0x000000000151bab0    0x240  at 0x7f47c8573de5
+0x000000000151bd00    0x240  at 0x7f47c8573de5
+0x000000000151bf50    0x240  at 0x7f47c8573de5
+0x000000000151c1a0    0x240  at 0x7f47c8573de5
+0x000000000151c3f0    0x240  at 0x7f47c8573de5
+0x0000000001efc6a0   0x1c40  at 0x7f47c804f7b9
+since i did not use any memory allocation call in the func.c so there is no memory
+leakage in the func.c
+

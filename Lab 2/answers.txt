@@ -1,0 +1,13 @@
+1. the result produced from the multiplication in the rbp register was "0xb38e48c71bd31c6f", which is correct. However, at the very end there is an instruction "0x00000000005436af <arith_driver+431>lisp.h:700		lea    0x0(,%rbp,4),%rax" which makes the result left shift by 2. the program output answer "-896699255797638033", which is the result left shift by two and then right shift by 2. So in the lisp code somewhere, when the program output the result, it intend to right shift by 2 so that the result become the value before shift, but since left shift 2 made the most siginificant bit 1, and when right shifting the result, it performs arithmatic shift, so the result become incorrect.
+
+2. the biggset positive number in 64 bit should be 7fffffffffffffff but the program right shift by 2, so the value becomes 1fffffffffffffff which is 2305843009213693951.
+
+3. 0x7fffffffffffffff*0x7fffffffffffffff will overflow and made the least siginificant bit to be 1.
+
+4. if we add "-fsanitize=undefined" when complie the program, the program will output error message when it detect overflow, but it will still produce the wrong answer since there is a left shift by 2 at the end of execution.
+
+5. if we add "-fwrapv" when comlie the program, when there is any integer overflow, it wrap back to zero. So there is situation where one number divide the sum of two numbers. If the sum overflow to be zero, then we will have the situation divide by zero.
+
+6. when doing integer multiplication, if the number that we multiply by is the power of 2, then we can use left shift instead multiplication since left shift is faster than multiplicaiton.
+
+7. use the change above, we can speed up few instruction cycles per multilication operation.

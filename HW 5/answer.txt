@@ -1,0 +1,11 @@
+Xiongfeng Jin
+504502689
+2nd edition
+
+Question 12.18:
+A: unsafe
+B: safe
+C: unsafe
+
+Question 12.24:
+The functions in the RIO package are reentrant because they manually restarts after the interrupt function return. and the book also said that "Notice that each function manually restarts the read or write function if it is interrupted by the return from an application signal handler."

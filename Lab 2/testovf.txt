@@ -1,0 +1,2 @@
+the testovf with "-O2" and "-O2 -fsanitize=undefined" has same assembly code and the instructions are simple, only "xorl	%eax, %eax" and "ret". so from the instruction we can see that it only return false because eax is 0. this is because there is no wrap enabled, so the expression is always false.
+on the other hand, testovf with "-O2 -fwrapv" has more code. it put the "LONG_MAX" in one register and rax, then do the addition and comparison. At last, it returns the result of the comparison, which should be true because big + LONG_MAX should be 1 less than big.

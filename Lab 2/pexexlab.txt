@@ -1,0 +1,18 @@
+I start with "gdb ~eggert/bin64/bin/emacs-24.5" to open the debug tool
+
+"set args -batch -eval '(print (* 6997 -4398042316799 179))'" to set the argument for the emacs program
+
+"break Ftimes" to place a breakpoint at function Ftimes
+
+"Run" to start running the emacs program.
+
+"disas Ftimes" to show the assembly language of the Ftimes function.
+
+"disas arith_driver" to show the assembly language of the arith_driver function.
+
+I use "stepi" to execute instructions one by one.
+
+"p/a" to display values in registers
+
+"x/g" to display values in memory
+

